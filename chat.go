@@ -84,6 +84,9 @@ func consoleChat(args []string) int {
 	endBar := u.startBar()
 	defer endBar()
 	fmt.Println(u.paint("1", "ContextSaver Chat") + u.paint("2", fmt.Sprintf("  model %s, %dK context", filepath.Base(u.model), u.ctx/1024)))
+	if !helperInstalled() {
+		fmt.Println(u.paint("33", "⚠ "+helperHowTo()))
+	}
 	// Ctrl+C stops the answer being written; at the prompt it closes the chat.
 	var mu sync.Mutex
 	var stop context.CancelFunc

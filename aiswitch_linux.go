@@ -92,7 +92,7 @@ func consoleStartModel(name string) int {
 		return 1
 	}
 	if msg := startHelper(); msg != "" && !strings.HasSuffix(msg, "ready") {
-		fmt.Println(msg)
+		fmt.Println(msg) // chat shows it again at the top
 	}
 	r := findRunningAI()
 	if r.any() {

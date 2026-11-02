@@ -81,7 +81,7 @@ func asRoot(out io.Writer, command string) error {
 		c.Stdin, c.Stdout, c.Stderr = os.Stdin, out, out
 		return c.Run()
 	}
-	return errors.New("this needs root: install the admin helper once (in a terminal: contextsaver install-helper)")
+	return errors.New("Tell the user: " + helperHowTo())
 }
 
 type setupStep struct {
@@ -211,6 +211,9 @@ func toolSetup(a map[string]any) (string, error) {
 		if !known[w] {
 			return "", fmt.Errorf("unknown setup step %q; steps: all tools compilers office chromium llama whisper android ndk github", w)
 		}
+	}
+	if !helperInstalled() && os.Geteuid() != 0 {
+		res = append(res, "⚠ "+helperHowTo())
 	}
 	if len(res) == 0 {
 		return "everything is set up already", nil

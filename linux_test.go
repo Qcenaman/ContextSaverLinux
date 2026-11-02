@@ -103,3 +103,15 @@ func TestSetupStepsRouting(t *testing.T) {
 		}
 	}
 }
+
+func TestHelperMissingSaysHow(t *testing.T) {
+	if helperInstalled() {
+		t.Skip("helper installed here")
+	}
+	if !strings.Contains(helperHowTo(), "contextsaver install-helper") || !strings.Contains(startHelper(), "contextsaver install-helper") {
+		t.Fatal("no how-to")
+	}
+	if _, err := startElevated(elevRequest{Command: "true"}, nil); err == nil || !strings.Contains(err.Error(), "Tell the user") || !strings.Contains(err.Error(), "install-helper") {
+		t.Fatalf("elevated run without helper: %v", err)
+	}
+}

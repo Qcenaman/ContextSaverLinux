@@ -58,6 +58,12 @@ func audit(format string, a ...any) {
 
 func helperInstalled() bool { return exists(socketUnitPath()) }
 
+// helperHowTo: the warning and the one way to fix it, the same wherever the helper is missing.
+func helperHowTo() string {
+	return "The admin helper isn't installed, so commands that need root (installing programs, system changes) won't work. " +
+		"To install it once: open a Terminal (Ctrl+Alt+T) and type: contextsaver install-helper — it asks for your password one time."
+}
+
 // ---------- helper (root) ----------
 
 var helperActive atomic.Int32
@@ -260,7 +266,7 @@ func startElevated(req elevRequest, out io.Writer) (*elevProc, error) {
 	conn, err := net.DialTimeout("unix", helperSock, 10*time.Second)
 	if err != nil {
 		if !helperInstalled() {
-			return nil, errors.New("the admin helper isn't installed. The user has to run once, in a terminal: \"" + installPath() + "\" install-helper (asks the password once)")
+			return nil, errors.New("Tell the user: " + helperHowTo())
 		}
 		return nil, fmt.Errorf("couldn't reach the admin helper: %v (sudo systemctl restart %s.socket)", err, helperUnit)
 	}
@@ -516,7 +522,7 @@ func helperStatus() string {
 // helper on demand, so this only reports whether it is set up.
 func startHelper() string {
 	if !helperInstalled() {
-		return "Admin helper isn't installed (run once: contextsaver install-helper)"
+		return "⚠ " + helperHowTo()
 	}
 	if _, err := os.Stat(helperSock); err != nil {
 		return "Admin helper socket is missing (sudo systemctl restart " + helperUnit + ".socket)"

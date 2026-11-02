@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-const appVersion = "0.3.0"
+const appVersion = "0.3.1"
 
 // toolsVersion: the Windows ContextSaver release whose tools this build matches.
 const toolsVersion = "1.17.1"

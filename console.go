@@ -239,6 +239,9 @@ func consoleInstall() {
 			consoleSetup()
 		}
 	}
+	if !helperInstalled() {
+		fmt.Println("\n⚠ " + helperHowTo())
+	}
 	if len(anythingConfigPaths()) > 0 {
 		fmt.Println("\nAll set. In AnythingLLM open Agent Skills and refresh the MCP servers (or restart AnythingLLM).")
 	} else {
