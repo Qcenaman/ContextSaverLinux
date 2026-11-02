@@ -220,13 +220,22 @@ func ctagsSymbols(p string) ([]sym, error) {
 	sc.Buffer(make([]byte, 1<<20), 1<<20)
 	for sc.Scan() {
 		var t struct {
-			Type, Name, Path, Kind, Signature, Scope string
-			Line                                     int
+			Type                               string `json:"_type"`
+			Name, Path, Kind, Signature, Scope string
+			ScopeKind                          string `json:"scopeKind"`
+			Line                               int
 		}
 		if json.Unmarshal(sc.Bytes(), &t) != nil || t.Type != "tag" || !outlineKinds[t.Kind] {
 			continue
 		}
-		syms = append(syms, sym{t.Path, t.Kind, t.Name, t.Signature, t.Scope, t.Line})
+		scope := t.Scope
+		switch t.ScopeKind {
+		case "package", "namespace", "module", "file", "":
+			scope = "" // the file already says where it is
+		default:
+			scope = scope[strings.LastIndexAny(scope, ".:")+1:]
+		}
+		syms = append(syms, sym{t.Path, t.Kind, t.Name, t.Signature, scope, t.Line})
 	}
 	return syms, nil
 }
