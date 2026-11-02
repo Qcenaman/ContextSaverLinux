@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-const appVersion = "0.1.0"
+const appVersion = "0.2.0"
 
 // toolsVersion: the Windows ContextSaver release whose tools this build matches.
 const toolsVersion = "1.17.1"
@@ -19,6 +19,9 @@ func main() {
 	}
 	switch args[0] {
 	case "start":
+		if len(args) > 1 {
+			exitAfterPause(consoleStartModel(args[1]))
+		}
 		exitAfterPause(consoleStartLocalAI())
 	case "stop":
 		exitAfterPause(consoleStopLocalAI())
@@ -55,6 +58,8 @@ func main() {
 		refreshHelper()
 	case "version":
 		fmt.Println("contextsaver", appVersion, "(Linux; tools of ContextSaver "+toolsVersion+")")
+	case "chat":
+		os.Exit(consoleChat(args[1:]))
 	case "terminal":
 		terminal()
 	case "macro":

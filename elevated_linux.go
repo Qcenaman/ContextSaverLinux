@@ -336,7 +336,7 @@ func elevateSelf(arg string) error {
 	exe := installPath()
 	args := []string{exe, arg, "--root", appRoot()}
 	var c *exec.Cmd
-	if fi, err := os.Stdin.Stat(); err == nil && fi.Mode()&os.ModeCharDevice != 0 {
+	if isTerminal(os.Stdin) {
 		c = exec.Command("sudo", args...)
 	} else {
 		c = exec.Command("pkexec", args...)
@@ -488,7 +488,7 @@ func refreshHelper() {
 	if a, b := fileHash(installPath()), fileHash(helperBin()); a != "" && a == b {
 		return
 	}
-	if fi, err := os.Stdin.Stat(); err != nil || fi.Mode()&os.ModeCharDevice == 0 {
+	if !isTerminal(os.Stdin) {
 		fmt.Println("The admin helper runs an older version; update it with: contextsaver install-helper")
 		return
 	}

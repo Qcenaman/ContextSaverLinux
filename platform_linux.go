@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -415,4 +416,27 @@ func pidOnPort(port int) int {
 		}
 	}
 	return 0
+}
+
+// migrateHiddenRoot moves a 0.1.0 install from ~/.contextsaver into the app folder and
+// points the saved model script at its new place.
+func migrateHiddenRoot() {
+	h, _ := os.UserHomeDir()
+	old := filepath.Join(h, ".contextsaver")
+	if os.Getenv("CONTEXTSAVER_ROOT") != "" || !exists(old) || samePath(old, appRoot()) {
+		return
+	}
+	if err := moveTree(old, appRoot()); err != nil {
+		fmt.Printf("Couldn't move %s to %s: %v\n", old, appRoot(), err)
+		return
+	}
+	fmt.Println("Moved", old, "→", appRoot())
+	appHome = filepath.Join(appRoot(), "data")
+	if b, err := os.ReadFile(filepath.Join(appHome, "config.json")); err == nil {
+		json.Unmarshal(b, &cfg)
+	}
+	if cfg.AIScript != "" && hasPathPrefix(cfg.AIScript, old) {
+		cfg.AIScript = filepath.Join(appRoot(), strings.TrimPrefix(cfg.AIScript, old+"/"))
+		saveConfig()
+	}
 }

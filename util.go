@@ -64,7 +64,7 @@ func appRoot() string {
 		return `D:\Claude Apps\ContextSaver`
 	}
 	h, _ := os.UserHomeDir()
-	return filepath.Join(h, ".contextsaver")
+	return filepath.Join(h, "Claude Apps", "ContextSaver") // next to TokenSaver, like D:\Claude Apps on Windows
 }
 
 func initApp() {

@@ -153,6 +153,7 @@ func editClaudeConfig(path string, edit func(servers map[string]any)) error {
 }
 
 func consoleInstall() {
+	migrateOldInstall()
 	target := installPath()
 	exe, _ := os.Executable()
 	if !samePath(exe, target) {
@@ -231,7 +232,7 @@ func consoleInstall() {
 		fmt.Println(strings.TrimPrefix(n, "; "))
 	}
 	writeDesktopShortcuts(target)
-	if fi, err := os.Stdin.Stat(); err == nil && fi.Mode()&os.ModeCharDevice != 0 && setupNeeded() {
+	if isTerminal(os.Stdin) && setupNeeded() {
 		if askYes("\nInstall the programs ContextSaver uses (llama.cpp, GitHub CLI, compilers, OCR...)? It asks before each change. [Y/n] ", true) {
 			consoleSetup()
 		}
@@ -317,6 +318,7 @@ func configHasEntry(path, target string) bool {
 // Nothing is deleted; it is moved.
 func migrateOldInstall() {
 	if !isWin {
+		migrateHiddenRoot()
 		return
 	}
 	la := os.Getenv("LOCALAPPDATA")

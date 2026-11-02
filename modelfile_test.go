@@ -175,6 +175,7 @@ func TestModelShortcutsFollowFile(t *testing.T) {
 	modelHome(t)
 	root := t.TempDir()
 	t.Setenv("CONTEXTSAVER_ROOT", root)
+	t.Setenv("HOME", t.TempDir()) // desktop icons land in this test's own Desktop
 	gone := filepath.Join(root, "Use model - gone.desktop")
 	os.WriteFile(gone, []byte("x"), 0o644)
 	writeModels(t, `{"models": [{"name": "one", "script": "one.bat"}, {"name": "two", "gguf": ""}]}`)

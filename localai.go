@@ -78,7 +78,7 @@ func consoleStartLocalAI() int {
 			}
 		}
 	} else {
-		fmt.Println("AnythingLLM not found at", exe)
+		return consoleChat(nil) // no AnythingLLM here: ContextSaver's own chat, in this window
 	}
 	time.Sleep(2 * time.Second)
 	return 0
@@ -99,6 +99,9 @@ func consoleStopLocalAI() int {
 			signalProcs(anythingProc, syscall.SIGKILL)
 		}
 		fmt.Println("AnythingLLM closed")
+	}
+	if n := killChats(); n > 0 {
+		fmt.Println("Closed", n, "chat window(s)")
 	}
 	if stopOtherContextSavers() > 0 {
 		fmt.Println("ContextSaver closed")
@@ -168,15 +171,21 @@ func anythingStorage() string {
 func writeDesktopShortcuts(exe string) {
 	icon := appIcon("anythingllm")
 	startDesc, stopDesc := "Load the local model and open AnythingLLM", "Stop the local model and close AnythingLLM"
+	if !exists(anythingLLMExe()) {
+		startDesc, stopDesc = "Load the local model and chat with it (ContextSaver Chat)", "Stop the local model"
+	}
 	if useLMStudio() {
 		icon = appIcon("lm-studio", "lmstudio", "lm studio")
 		startDesc, stopDesc = "Start LM Studio's server and load the local model", "Unload the local model and stop LM Studio's server"
 	}
 	var failed error
-	for _, s := range []struct{ name, arg, desc string }{
-		{"Local AI", "start", startDesc},
-		{"Stop Local AI", "stop", stopDesc},
-	} {
+	icons := []struct{ name, arg, desc string }{{"Local AI", "start", startDesc}, {"Stop Local AI", "stop", stopDesc}}
+	if !exists(anythingLLMExe()) && !useLMStudio() {
+		icons = icons[1:] // one "Local AI - <model>" icon per model instead (writeModelIcons)
+		stopDesc = "Close the chat windows and stop the local model"
+		icons[0].desc = stopDesc
+	}
+	for _, s := range icons {
 		if err := writeLauncher(filepath.Join(desktopDir(), s.name+".desktop"), s.name, s.desc, icon, []string{exe, s.arg}, true, 0); err != nil {
 			failed = err
 		}
@@ -185,5 +194,8 @@ func writeDesktopShortcuts(exe string) {
 		fmt.Println("Couldn't create the desktop icons:", failed)
 		return
 	}
-	fmt.Println("Desktop icons: Local AI, Stop Local AI")
+	h, _ := os.UserHomeDir()
+	writeLauncher(filepath.Join(h, ".local", "share", "applications", "contextsaver-chat.desktop"), "ContextSaver Chat",
+		"Chat with the local model, with ContextSaver's tools", "utilities-terminal", []string{exe, "chat"}, true, 0)
+	fmt.Println("Desktop icons: Local AI - <model> for each model, Stop Local AI; app menu: ContextSaver Chat")
 }

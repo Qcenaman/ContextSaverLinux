@@ -728,6 +728,7 @@ func writeModelShortcuts(exe string) (string, error) {
 		}
 	}
 	writeLauncher(filepath.Join(dir, "Stop model.desktop"), "Stop model", "Stop the local model", "", []string{exe, "model", "stop"}, true, 3)
+	writeModelIcons(exe, set.listed)
 	out := "shortcuts in " + dir + ": " + strings.Join(set.listed, ", ")
 	if len(removed) > 0 {
 		out += "\nremoved: " + strings.Join(removed, ", ")
