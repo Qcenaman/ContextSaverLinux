@@ -1,0 +1,9 @@
+/contextsaver
+/contextsaver-linux-amd64
+/dist/
+/app/
+/data/
+/old/
+/admin-log/
+/Saved Jobs/
+*.exe
