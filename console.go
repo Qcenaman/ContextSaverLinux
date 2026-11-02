@@ -221,7 +221,9 @@ func consoleInstall() {
 		fmt.Println("Connected to LM Studio in", p)
 		connected++
 	}
-	if connected == 0 {
+	if connected == 0 && len(anythingConfigPaths()) == 0 && lmStudioMCPPath() == "" {
+		fmt.Println("No AnythingLLM or LM Studio here: chat with the local model through a \"Local AI - <model>\" icon (ContextSaver Chat).")
+	} else if connected == 0 {
 		fmt.Printf("\nAdd this to the \"mcpServers\" section of AnythingLLM's anythingllm_mcp_servers.json or LM Studio's mcp.json by hand:\n  \"contextsaver\": {\"command\": %q, \"args\": [\"mcp\"]}\n", target)
 	}
 	refreshHelper()
@@ -237,7 +239,11 @@ func consoleInstall() {
 			consoleSetup()
 		}
 	}
-	fmt.Println("\nAll set. In AnythingLLM open Agent Skills and refresh the MCP servers (or restart AnythingLLM).")
+	if len(anythingConfigPaths()) > 0 {
+		fmt.Println("\nAll set. In AnythingLLM open Agent Skills and refresh the MCP servers (or restart AnythingLLM).")
+	} else {
+		fmt.Println("\nAll set. Double-click a \"Local AI - <model>\" icon on the Desktop to chat.")
+	}
 	fmt.Println("Everything ContextSaver keeps is in", appRoot())
 }
 
@@ -346,7 +352,10 @@ func migrateOldInstall() {
 	}
 }
 
-// anythingConfigPaths lists AnythingLLM Desktop's MCP server files.
+// anythingConfigPaths lists AnythingLLM Desktop's MCP server files (none when it isn't installed).
 func anythingConfigPaths() []string {
+	if !exists(anythingStorage()) && !exists(anythingLLMExe()) {
+		return nil
+	}
 	return []string{filepath.Join(anythingStorage(), "plugins", "anythingllm_mcp_servers.json")}
 }
