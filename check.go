@@ -266,7 +266,10 @@ func ckTarget(a *checkArgs) (root, single, label string, notes []string, err err
 		if a.Path == "" {
 			return "", "", "", nil, errors.New("path is required: a file or folder on the PC")
 		}
-		p, err := expandPath(a.Path)
+		p, err := expandRead(a.Path)
+		if err == nil && a.Fix && isRepoCopy(p) {
+			err = errors.New(p + " is a temporary read-only copy: check it without fix, or use source:\"repo\" to fix a clone of it")
+		}
 		if err != nil {
 			return "", "", "", nil, err
 		}

@@ -35,7 +35,7 @@ func toolScan(raw json.RawMessage) (string, error) {
 	if err := json.Unmarshal(raw, &a); err != nil {
 		return "", err
 	}
-	p, err := expandPath(a.Path)
+	p, err := expandRead(a.Path)
 	if err != nil {
 		return "", err
 	}
@@ -287,7 +287,7 @@ func toolFind(raw json.RawMessage) (string, error) {
 	deadline := time.Now().Add(40 * time.Second)
 	var roots []string
 	for _, raw := range a.Path {
-		root, err := expandPath(raw)
+		root, err := expandRead(raw)
 		if err != nil {
 			return "", err
 		}
@@ -485,7 +485,7 @@ func toolRead(raw json.RawMessage) (string, []toolImage, error) {
 
 // readImage sends a small copy of a picture or a PDF page for Claude to look at.
 func readImage(a readArgs) (string, []toolImage, error) {
-	p, err := expandPath(a.Path)
+	p, err := expandRead(a.Path)
 	if err != nil {
 		return "", nil, err
 	}
@@ -531,7 +531,7 @@ func readImage(a readArgs) (string, []toolImage, error) {
 }
 
 func readText(a readArgs) (string, error) {
-	p, err := expandPath(a.Path)
+	p, err := expandRead(a.Path)
 	if err != nil {
 		return "", err
 	}

@@ -33,6 +33,7 @@ type gitArgs struct {
 	DryRun   bool     `json:"dry_run"`
 	MaxChars int      `json:"max_chars"`
 	Wait     *int     `json:"wait_seconds"`
+	Pair     bool     `json:"pair"`
 }
 
 // gitNetFlags makes Git Credential Manager open the browser sign-in directly
@@ -212,32 +213,33 @@ func toolGit(raw json.RawMessage) (string, error) {
 		return gitLogin()
 	}
 	if action == "clone" {
-		if strings.TrimSpace(a.URL) == "" {
-			return "", errors.New("clone needs url")
-		}
-		u := a.URL
-		if !strings.Contains(u, "://") && !strings.HasPrefix(u, "git@") && strings.Count(u, "/") == 1 {
-			u = "https://github.com/" + u
-		}
-		to := a.To
-		if to == "" {
-			to = a.Path
-		}
-		if strings.TrimSpace(to) == "" {
-			return "", errors.New("clone needs to (target folder)")
-		}
-		cmd := "git " + strings.Join(gitNetFlags, " ") + " clone --progress"
-		if a.Ref != "" {
-			cmd += " --branch " + a.Ref
-		}
-		cmd += fmt.Sprintf(" %q %q", u, to)
-		rargs, _ := json.Marshal(map[string]any{"command": cmd, "name": "git clone", "tail": 5, "wait_seconds": waitSecs(a.Wait, 45, 50), "env": map[string]string{"GIT_TERMINAL_PROMPT": "0"}})
-		return toolRun(rargs)
+		return gitClone(a)
+	}
+	if action == "compare" {
+		return gitCompare(a, maxChars)
 	}
 
-	root, err := gitRoot(a.Path)
+	p := a.Path
+	if s, ok := parseRepoPath(p); ok {
+		q, err := repoLocal(s)
+		if err != nil {
+			return "", err
+		}
+		p = q
+	} else if q, err := expandPath(p); err == nil {
+		p = q
+	}
+	root, err := gitRoot(p)
 	if err != nil {
 		return "", err
+	}
+	if isRepoCopy(root) {
+		switch action {
+		case "commit", "push", "release":
+			return "", fmt.Errorf("%s is a temporary read-only copy of a GitHub repo: %s refused (clone it to a folder of your own first: git{action:clone,url,to})", root, action)
+		case "pull":
+			return "temporary copy: refreshed by itself when older than 5 minutes\n" + repoInfo(root), nil
+		}
 	}
 	var b strings.Builder
 	net := 5 * time.Minute
@@ -412,7 +414,7 @@ func toolGit(raw json.RawMessage) (string, error) {
 	case "handoff":
 		return gitHandoff(root, a, maxChars)
 	}
-	return "", fmt.Errorf("unknown action %q (status, log, diff, commit, push, pull, clone, release, handoff)", action)
+	return "", fmt.Errorf("unknown action %q (status, log, diff, compare, commit, push, pull, clone, release, handoff)", action)
 }
 
 func firstErr(out string, err error) string {
@@ -497,4 +499,76 @@ func gitHandoff(root string, a gitArgs, maxChars int) (string, error) {
 		return fmt.Sprintf("handoff written to %s (%d chars)\n%s", a.To, len(body), clip(body, maxChars)), nil
 	}
 	return clip(body, maxChars), nil
+}
+
+// gitClone: url = owner/name or a git URL. Without to (or path) a GitHub repo becomes a
+// temporary read-only copy; a destination that already is a clone of url is updated
+// (pull --ff-only) instead of failing. Answers with path, branch and last commit.
+func gitClone(a gitArgs) (string, error) {
+	u := strings.TrimSpace(a.URL)
+	to := strings.TrimSpace(a.To)
+	if to == "" {
+		to = strings.TrimSpace(a.Path)
+	}
+	if u == "" && isRepoPath(to) {
+		u, to = to, ""
+	}
+	if u == "" {
+		return "", errors.New("clone needs url (owner/name or a git URL)")
+	}
+	if to == "" {
+		s, ok := parseRepoPath(u)
+		if !ok {
+			return "", errors.New("clone needs to (target folder) for a repo that isn't on GitHub")
+		}
+		if s.Ref == "" {
+			s.Ref = strings.TrimSpace(a.Ref)
+		}
+		s.Sub = ""
+		dir, err := repoLocal(s)
+		if err != nil {
+			return "", err
+		}
+		return "temporary read-only copy (refreshed when used, removed after 24 h unused)\n" + repoInfo(dir), nil
+	}
+	if !strings.Contains(u, "://") && !strings.HasPrefix(u, "git@") {
+		if s, ok := parseRepoPath(u); ok {
+			u = "https://github.com/" + s.Owner + "/" + s.Name
+			if a.Ref == "" {
+				a.Ref = s.Ref
+			}
+		}
+	}
+	dest, err := expandPath(to)
+	if err != nil {
+		return "", err
+	}
+	if isGitWork(dest) {
+		origin, _, _ := gitExec(dest, 20*time.Second, "remote", "get-url", "origin")
+		if normRemote(origin) != normRemote(u) {
+			return "", fmt.Errorf("%s is already a clone of %s, not of %s", dest, strings.TrimSpace(origin), u)
+		}
+		args := append(append([]string{}, gitNetFlags...), "pull", "--ff-only", "--quiet")
+		out, code, err := gitExec(dest, 5*time.Minute, args...)
+		if err != nil {
+			return "", err
+		}
+		if code != 0 {
+			return "", fmt.Errorf("already cloned there; git pull --ff-only failed:\n%s", gitShort(out, 10))
+		}
+		return "already cloned: updated (pull --ff-only)\n" + repoInfo(dest), nil
+	}
+	cmd := "git " + strings.Join(gitNetFlags, " ") + " clone --progress"
+	if a.Ref != "" {
+		cmd += " --branch " + a.Ref
+	}
+	cmd += fmt.Sprintf(" %q %q", u, dest)
+	rargs, _ := json.Marshal(map[string]any{"command": cmd, "name": "git clone", "tail": 5, "wait_seconds": waitSecs(a.Wait, 45, 50), "env": map[string]string{"GIT_TERMINAL_PROMPT": "0"}})
+	out, err := toolRun(rargs)
+	if err == nil && isGitWork(dest) {
+		if _, code, _ := gitExec(dest, 20*time.Second, "rev-parse", "--verify", "-q", "HEAD"); code == 0 {
+			out += "\n" + repoInfo(dest)
+		}
+	}
+	return out, err
 }

@@ -136,7 +136,7 @@ type sym struct {
 }
 
 func toolOutline(a map[string]any) (string, error) {
-	p, err := expandPath(str(a, "path", "file"))
+	p, err := expandRead(str(a, "path", "file"))
 	if err != nil {
 		return "", err
 	}
