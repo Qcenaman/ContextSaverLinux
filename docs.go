@@ -76,7 +76,7 @@ func pdfFileText(p string, limit int, o textOpts) (string, error) {
 					txt = fmt.Sprintf("[scanned page; read it with pages=%d or grep to OCR it]", n)
 				case oerr != nil:
 					txt = "[scanned page; OCR failed]"
-				case o.ocrWait > 0 && isWin:
+				case o.ocrWait > 0 && (isWin || ocrAvailable()):
 					txt = "[scanned page; OCR still running]"
 				default:
 					txt = "[scanned page without a text layer]"
@@ -99,7 +99,7 @@ func pdfFileText(p string, limit int, o textOpts) (string, error) {
 	switch {
 	case oerr != nil:
 		fmt.Fprintf(&b, "[%v]\n", oerr)
-	case len(pending) > 0 && o.ocrWait > 0 && isWin:
+	case len(pending) > 0 && o.ocrWait > 0 && (isWin || ocrAvailable()):
 		fmt.Fprintf(&b, "[OCR is still reading %d scanned page(s) in the background; ask again in a minute for the rest]\n", len(pending))
 	}
 	return strings.TrimRight(b.String(), "\n"), nil
@@ -123,8 +123,8 @@ func imageText(p string, o textOpts) (string, error) {
 		return "", err
 	case o.ocrWait <= 0:
 		return "", errBinary
-	case !isWin:
-		return "", errors.New("reading text in images needs Windows OCR")
+	case !isWin && !ocrAvailable():
+		return "", errors.New("reading text in images needs tesseract (" + installHint("tesseract-ocr") + ")")
 	case len(pending) > 0:
 		return "", errors.New("OCR is still reading this image; ask again shortly")
 	}

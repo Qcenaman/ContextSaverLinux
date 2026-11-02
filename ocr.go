@@ -231,7 +231,7 @@ func (t *tailBuf) Write(p []byte) (int, error) {
 // the JPEG from convert mode.
 func runWinOCR(ctx context.Context, r ocrReq, each func(ocrPage)) ([]byte, error) {
 	if !isWin {
-		return nil, errors.New("OCR needs Windows")
+		return runLinuxOCR(ctx, r, each)
 	}
 	script, err := ocrScriptPath()
 	if err != nil {
@@ -401,7 +401,7 @@ func ocrFile(p string, fi fs.FileInfo, pages []int, isPDF bool, wait time.Durati
 	ocrMu.Lock()
 	have := loadOCRCache(cp)
 	missing := missingOf(have)
-	if len(missing) == 0 || wait <= 0 || !isWin {
+	if len(missing) == 0 || wait <= 0 || !isWin && !ocrAvailable() {
 		ocrMu.Unlock()
 		return have, missing, nil
 	}

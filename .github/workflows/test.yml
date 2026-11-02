@@ -8,6 +8,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: sudo apt-get update -q && sudo apt-get install -y -q universal-ctags
+      - run: sudo apt-get update -q && sudo apt-get install -y -q universal-ctags tesseract-ocr poppler-utils imagemagick
       - run: go vet ./...
       - run: go test ./...

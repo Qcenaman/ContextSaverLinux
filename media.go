@@ -133,6 +133,16 @@ func ensureWhisper(ctx context.Context) (string, string, error) {
 		}
 		return nil
 	})
+	if !isWin { // whisper.cpp ships no Linux programs: the one setup built, or one on PATH
+		cli = filepath.Join(dir, "whisper-cli")
+		if !exists(cli) {
+			p, err := exec.LookPath("whisper-cli")
+			if err != nil {
+				return "", "", errors.New("transcripts need whisper.cpp: run contextsaver setup once (it builds whisper-cli, a few minutes)")
+			}
+			cli = p
+		}
+	}
 	if cli == "" {
 		var rs []struct {
 			Assets []struct {
@@ -337,7 +347,7 @@ func toolMedia(raw json.RawMessage) (string, error) {
 		return "", err
 	}
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		return "", errors.New("ffmpeg isn't installed (winget install ffmpeg)")
+		return "", errors.New("ffmpeg isn't installed (" + installHint("ffmpeg") + ")")
 	}
 	maxc := a.MaxChars
 	if maxc <= 0 {

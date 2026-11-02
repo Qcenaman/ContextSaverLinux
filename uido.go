@@ -75,6 +75,13 @@ type uiStep struct {
 }
 
 func uiaDo(w winInfo, op, name, value string) (string, error) {
+	if !isWin {
+		out, err := atspiOutput(op, w, 30*time.Second, name, value)
+		if err != nil {
+			return "", err
+		}
+		return uiaDoResult(w, op, value, strings.TrimSpace(strings.SplitN(out, "\n", 2)[0]))
+	}
 	script := filepath.Join(appHome, "scripts", "uiado.ps1")
 	if b, err := os.ReadFile(script); err != nil || string(b) != uiaDoScript {
 		os.MkdirAll(filepath.Dir(script), 0o755)
@@ -93,7 +100,11 @@ func uiaDo(w winInfo, op, name, value string) (string, error) {
 		}
 	}()
 	out, _ := cmd.Output()
-	line := strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0])
+	return uiaDoResult(w, op, value, strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0]))
+}
+
+// uiaDoResult acts on the script's answer: OK, a rectangle to click, or an error.
+func uiaDoResult(w winInfo, op, value, line string) (string, error) {
 	switch {
 	case strings.HasPrefix(line, "OK"):
 		return strings.TrimPrefix(line, "OK "), nil
@@ -120,7 +131,7 @@ func uiaDo(w winInfo, op, name, value string) (string, error) {
 	case strings.HasPrefix(line, "E "):
 		return "", errors.New(line[2:])
 	}
-	return "", errors.New("UI Automation gave no answer")
+	return "", errors.New("no answer from the window's accessibility")
 }
 
 // windowDo runs steps in a window and reports each in a few words.

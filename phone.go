@@ -58,12 +58,20 @@ type phoneConf struct {
 	LastBattery string `json:"last_battery"`
 }
 
-// phoneConfPath: TokenSaver's phone.json (a var so tests can point elsewhere).
+// phoneConfPath: the phone pairing (a var so tests can point elsewhere). Windows shares
+// TokenSaver's phone.json; on Linux ContextSaver keeps its own, and until there is one it
+// reads (never writes) the pairing on the Windows partition.
 var phoneConfPath = func() string {
 	if isWin {
 		return `D:\Claude Apps\TokenSaver\data\phone.json`
 	}
-	return filepath.Join(appHome, "phone.json")
+	own := filepath.Join(appHome, "phone.json")
+	if !exists(own) {
+		if p, err := winToLinux(`D:\Claude Apps\TokenSaver\data\phone.json`); err == nil && exists(p) {
+			return p
+		}
+	}
+	return own
 }
 
 func loadPhoneConf() phoneConf {

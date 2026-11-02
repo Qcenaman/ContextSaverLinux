@@ -10,14 +10,14 @@ import (
 // instructions), so the local model knows his own apps instead of web-searching them.
 // The user can edit data\about.md; details live in rag notes tagged "about".
 
-const defaultAbout = `About the user: lives in the Philippines (learning Tagalog). Desktop PC: RTX 5090 32 GB, 64 GB RAM; also a laptop and a Samsung phone running AdbSaver.
+const defaultAbout = `About the user: lives in the Philippines (learning Tagalog). This PC: his GPD Win Max 2 laptop on Ubuntu (dual boot with Windows; Radeon 780M, 64 GB RAM; Windows drives as D:\...). Also a desktop PC (RTX 5090) and a Samsung phone running AdbSaver.
 His own apps are in D:\Claude Apps\<name> and github.com/Qcenaman/<name> (releases there): ContextSaver (this pc tool), TokenSaver (Claude's twin), AdbSaver (phone engine; pc phone uses it), RemoteAI (his phone chat app), AdminHelper. Never web-search them. Install one on the phone: phone{action:install,app:<name>}.
 Asking = permission: act, don't ask first. Code: a few tests + GitHub Actions, no docs unless asked.
 More: rag{query,tag:"about"} (devices, apps, ComfyUI, LoRA training, WhatsApp recovery).`
 
 func aboutPath() string { return filepath.Join(appHome, "about.md") }
 
-// aboutCard returns data\about.md, creating it with the default card the first time.
+// aboutCard returns data/about.md, creating it the first time with the default card.
 func aboutCard() string {
 	if appHome == "" {
 		return defaultAbout

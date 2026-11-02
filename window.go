@@ -78,6 +78,13 @@ type uiaItem struct {
 
 // uiaText reads a window's accessibility tree and lays it out in rows, top to bottom.
 func uiaText(w winInfo) (string, error) {
+	if !isWin {
+		out, err := atspiOutput("text", w, 40*time.Second, "3000")
+		if err != nil && out == "" {
+			return "", err
+		}
+		return uiaItemsText(out)
+	}
 	script := filepath.Join(appHome, "scripts", "uiatext.ps1")
 	if b, err := os.ReadFile(script); err != nil || string(b) != uiaScript {
 		os.MkdirAll(filepath.Dir(script), 0o755)
@@ -100,12 +107,24 @@ func uiaText(w winInfo) (string, error) {
 	}()
 	out, err := cmd.Output()
 	close(done)
+	if s, e := uiaItemsText(string(out)); e != nil || s != "" || err == nil {
+		return s, e
+	}
+	if ctx.Err() != nil {
+		return "", errors.New("UI Automation took too long")
+	}
+	return "", fmt.Errorf("UI Automation failed: %v", err)
+}
+
+// uiaItemsText turns "x y h kind name value" lines (Windows UI Automation or Linux
+// accessibility) into the window's text in screen order, buttons as [Name].
+func uiaItemsText(out string) (string, error) {
 	var items []uiaItem
 	seen := map[string]bool{}
 	for _, l := range strings.Split(string(out), "\n") {
 		l = strings.TrimRight(l, "\r")
 		if strings.HasPrefix(l, "E ") {
-			return "", errors.New("UI Automation: " + l[2:])
+			return "", errors.New(l[2:])
 		}
 		f := strings.Split(l, "\t")
 		if len(f) < 6 {
@@ -129,12 +148,6 @@ func uiaText(w winInfo) (string, error) {
 		}
 		seen[key] = true
 		items = append(items, it)
-	}
-	if err != nil && len(items) == 0 {
-		if ctx.Err() != nil {
-			return "", errors.New("UI Automation took too long")
-		}
-		return "", fmt.Errorf("UI Automation failed: %v", err)
 	}
 	sort.SliceStable(items, func(a, b int) bool {
 		if absInt(items[a].y-items[b].y) > max(4, min(items[a].h, items[b].h)/2) {

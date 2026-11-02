@@ -29,6 +29,23 @@ const cdpPort = 9333
 var browserMu sync.Mutex
 
 func browserExe() string {
+	if !isWin {
+		if v := os.Getenv("CONTEXTSAVER_BROWSER"); v != "" && exists(v) {
+			return v
+		}
+		for _, n := range []string{"google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "microsoft-edge-stable", "brave-browser"} {
+			if p, err := lookPath(n); err == nil {
+				return p
+			}
+		}
+		for _, p := range []string{"/snap/bin/chromium", "/opt/google/chrome/chrome", "/var/lib/flatpak/exports/bin/com.google.Chrome",
+			"/var/lib/flatpak/exports/bin/org.chromium.Chromium"} {
+			if exists(p) {
+				return p
+			}
+		}
+		return ""
+	}
 	pf, pf86, la := os.Getenv("ProgramFiles"), os.Getenv("ProgramFiles(x86)"), os.Getenv("LOCALAPPDATA")
 	for _, p := range []string{
 		filepath.Join(pf, `Google\Chrome\Application\chrome.exe`), filepath.Join(pf86, `Google\Chrome\Application\chrome.exe`),
@@ -65,7 +82,7 @@ func ensureBrowser(show bool) error {
 	}
 	exe := browserExe()
 	if exe == "" {
-		return errors.New("no Chrome or Edge found")
+		return errors.New("no Chrome or Chromium found (sudo snap install chromium, or contextsaver setup)")
 	}
 	prof := filepath.Join(appHome, "browser")
 	os.MkdirAll(prof, 0o755)
@@ -74,7 +91,7 @@ func ensureBrowser(show bool) error {
 	if !show {
 		args = append(args, "--headless=new", "--window-size=1280,1600")
 	}
-	if !isWin {
+	if !isWin && os.Geteuid() == 0 { // Chrome refuses to run as root with its sandbox
 		args = append(args, "--no-sandbox")
 	}
 	cmd := exec.Command(exe, append(args, "about:blank")...)

@@ -87,6 +87,9 @@ func consoleSetup() {
 			}
 		}
 	}
+	if browserExe() == "" && askYes("\nInstall Chromium for the browser tool (pages that need JavaScript or your sign-in)? [Y/n] ", true) {
+		sudoRun("snap", "install", "chromium")
+	}
 	if !exists(filepath.Join(whisperDir(), "whisper-cli")) && exists("/usr/bin/cmake") {
 		if askYes("\nBuild whisper.cpp for audio/video transcripts (a few minutes)? [Y/n] ", true) {
 			if err := buildWhisper(); err != nil {

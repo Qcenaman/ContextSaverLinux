@@ -128,7 +128,7 @@ func scaffoldFiles(kind, name, owner string) (map[string]string, error) {
 			".gitignore": "/" + name + "\n/dist/\n",
 			"main.go": "package main\n\nimport \"fmt\"\n\nconst appVersion = \"0.1.0\"\n\nfunc greet(who string) string { return \"Hello, \" + who }\n\n" +
 				"func main() {\n\tfmt.Println(greet(\"world\"), appVersion)\n}\n",
-			"main_test.go": "package main\n\nimport \"testing\"\n\nfunc TestGreet(t *testing.T) {\n\tif got := greet(\"Ana\"); got != \"Hello, Ana\" {\n\t\tt.Fatalf(\"got %q\", got)\n\t}\n}\n",
+			"main_test.go":               "package main\n\nimport \"testing\"\n\nfunc TestGreet(t *testing.T) {\n\tif got := greet(\"Ana\"); got != \"Hello, Ana\" {\n\t\tt.Fatalf(\"got %q\", got)\n\t}\n}\n",
 			".github/workflows/test.yml": ghWorkflow("      - uses: actions/setup-go@v5\n        with:\n          go-version-file: go.mod\n      - run: go vet ./...\n      - run: go test ./...\n"),
 		}, nil
 	case "android", "kotlin", "apk":
@@ -137,7 +137,7 @@ func scaffoldFiles(kind, name, owner string) (map[string]string, error) {
 			"settings.gradle.kts": "pluginManagement {\n    repositories { google(); mavenCentral(); gradlePluginPortal() }\n}\n" +
 				"dependencyResolutionManagement {\n    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)\n    repositories { google(); mavenCentral() }\n}\n" +
 				"rootProject.name = \"" + name + "\"\ninclude(\":app\")\n",
-			"build.gradle.kts": "plugins {\n    id(\"com.android.application\") version \"8.7.3\" apply false\n    id(\"org.jetbrains.kotlin.android\") version \"2.0.21\" apply false\n}\n",
+			"build.gradle.kts":  "plugins {\n    id(\"com.android.application\") version \"8.7.3\" apply false\n    id(\"org.jetbrains.kotlin.android\") version \"2.0.21\" apply false\n}\n",
 			"gradle.properties": "org.gradle.jvmargs=-Xmx2g\nandroid.useAndroidX=true\nkotlin.code.style=official\n",
 			"gradle/wrapper/gradle-wrapper.properties": "distributionBase=GRADLE_USER_HOME\ndistributionPath=wrapper/dists\n" +
 				"distributionUrl=https\\://services.gradle.org/distributions/gradle-" + gradleVersion + "-bin.zip\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists\n",
@@ -166,9 +166,9 @@ func scaffoldFiles(kind, name, owner string) (map[string]string, error) {
 			".gitignore": "node_modules/\n/dist/\n",
 			"index.html": "<!doctype html>\n<html lang=\"en\">\n<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>" + name +
 				"</title></head>\n<body>\n<h1 id=\"out\"></h1>\n<script type=\"module\">import { greet } from './src/app.js'; document.getElementById('out').textContent = greet('world');</script>\n</body>\n</html>\n",
-			"src/app.js":       "export function greet(who) {\n  return `Hello, ${who}`;\n}\n",
-			"test/app.test.js": "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { greet } from '../src/app.js';\n\ntest('greets', () => assert.equal(greet('Ana'), 'Hello, Ana'));\n",
-			"build.mjs": "import { cpSync, mkdirSync } from 'node:fs';\nmkdirSync('dist', { recursive: true });\ncpSync('index.html', 'dist/index.html');\ncpSync('src', 'dist/src', { recursive: true });\n",
+			"src/app.js":                 "export function greet(who) {\n  return `Hello, ${who}`;\n}\n",
+			"test/app.test.js":           "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { greet } from '../src/app.js';\n\ntest('greets', () => assert.equal(greet('Ana'), 'Hello, Ana'));\n",
+			"build.mjs":                  "import { cpSync, mkdirSync } from 'node:fs';\nmkdirSync('dist', { recursive: true });\ncpSync('index.html', 'dist/index.html');\ncpSync('src', 'dist/src', { recursive: true });\n",
 			".github/workflows/test.yml": ghWorkflow("      - uses: actions/setup-node@v4\n        with:\n          node-version: 20\n      - run: npm test\n"),
 		}, nil
 	case "python", "py":
@@ -193,11 +193,11 @@ func scaffoldFiles(kind, name, owner string) (map[string]string, error) {
 		return map[string]string{
 			"CMakeLists.txt": "cmake_minimum_required(VERSION 3.16)\nproject(" + id + " C)\nadd_library(greet src/greet.c)\nadd_executable(" + id + " src/main.c)\n" +
 				"target_link_libraries(" + id + " greet)\nenable_testing()\nadd_executable(tests src/test.c)\ntarget_link_libraries(tests greet)\nadd_test(NAME greet COMMAND tests)\n",
-			".gitignore":  "/build/\n/dist/\n",
-			"src/greet.h": "#pragma once\nvoid greet(const char *who, char *out, int n);\n",
-			"src/greet.c": "#include <stdio.h>\n#include \"greet.h\"\n\nvoid greet(const char *who, char *out, int n) { snprintf(out, n, \"Hello, %s\", who); }\n",
-			"src/main.c":  "#include <stdio.h>\n#include \"greet.h\"\n\nint main(void) {\n    char s[64];\n    greet(\"world\", s, sizeof s);\n    puts(s);\n    return 0;\n}\n",
-			"src/test.c":  "#include <string.h>\n#include \"greet.h\"\n\nint main(void) {\n    char s[64];\n    greet(\"Ana\", s, sizeof s);\n    return strcmp(s, \"Hello, Ana\") != 0;\n}\n",
+			".gitignore":                 "/build/\n/dist/\n",
+			"src/greet.h":                "#pragma once\nvoid greet(const char *who, char *out, int n);\n",
+			"src/greet.c":                "#include <stdio.h>\n#include \"greet.h\"\n\nvoid greet(const char *who, char *out, int n) { snprintf(out, n, \"Hello, %s\", who); }\n",
+			"src/main.c":                 "#include <stdio.h>\n#include \"greet.h\"\n\nint main(void) {\n    char s[64];\n    greet(\"world\", s, sizeof s);\n    puts(s);\n    return 0;\n}\n",
+			"src/test.c":                 "#include <string.h>\n#include \"greet.h\"\n\nint main(void) {\n    char s[64];\n    greet(\"Ana\", s, sizeof s);\n    return strcmp(s, \"Hello, Ana\") != 0;\n}\n",
 			".github/workflows/test.yml": ghWorkflow("      - run: cmake -B build && cmake --build build && ctest --test-dir build --output-on-failure\n"),
 		}, nil
 	}

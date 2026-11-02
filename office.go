@@ -310,18 +310,18 @@ func officeConvert(p string, a officeArgs) (string, error) {
 		if err2 := sheetsToPDF(p, to); err2 != nil {
 			return "", fmt.Errorf("%v; own layout also failed: %v", err, err2)
 		}
-		note = " (laid out by ContextSaver: Excel needs a printer installed to export PDF)"
+		note = " (laid out by ContextSaver: the office app couldn't export the PDF)"
 	}
 	fi, err := os.Stat(to)
 	if err != nil {
-		return "", errors.New("Office finished but no file was written")
+		return "", errors.New("conversion finished but no file was written")
 	}
 	return fmt.Sprintf("converted to %s (%s)%s", to, hb(fi.Size()), note), nil
 }
 
 func runOfficeConvert(src, dst string) error {
 	if !isWin {
-		return errors.New("convert needs Microsoft Office on Windows")
+		return sofficeConvert(src, dst)
 	}
 	se, de := strings.ToLower(filepath.Ext(src)), strings.ToLower(filepath.Ext(dst))
 	appName := officeSrcApp[se]

@@ -12,11 +12,11 @@ import (
 // GPUs without nvidia-smi (the laptop's Radeon 780M, an AMD eGPU, Intel) read from /sys.
 
 type sysGPU struct {
-	name, driver         string
-	vram, vramUsed, gtt  int64
-	gttUsed              int64
-	busy                 int // percent, -1 unknown
-	tempC                float64
+	name, driver        string
+	vram, vramUsed, gtt int64
+	gttUsed             int64
+	busy                int // percent, -1 unknown
+	tempC               float64
 }
 
 func sysInt(p string) (int64, bool) {
