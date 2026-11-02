@@ -245,6 +245,14 @@ func compactDispatch(c string, a map[string]any) (string, []toolImage, error) {
 	case "model", "models":
 		out, err := toolModel(a)
 		return out, nil, err
+	case "sys", "system":
+		if strings.EqualFold(str(a, "action"), "setup") {
+			out, err := toolSetup(a)
+			return out, nil, err
+		}
+	case "setup", "install":
+		out, err := toolSetup(a)
+		return out, nil, err
 	case "outline", "symbols":
 		out, err := toolOutline(a)
 		return out, nil, err
@@ -732,7 +740,7 @@ var shortHelp = map[string]string{
 	"ai":      "ai{action:ask|summarize|classify,paths[],question,categories[],move_to}: local AI reads files and pictures.",
 	"office":  "office{action,path}\ncreate: .docx/.pdf from Markdown content; .pptx slides split by --- or headings; .xlsx sheets:[{name,rows}] or CSV content; .pdf from:[files, \"a.pdf:2-5\"].\nedit (backup kept; to=save as): replace:[{find,with}], delete_paragraphs, delete_slides:\"2,4\", content, insert_after; xlsx cells:{\"B2\":5}, append_rows; pdf pages:\"3,1-2\", rotate, stamp:\"{n}/{total}\", split.\nread. convert{to:\".pdf\" or file} via LibreOffice.",
 	"rag":     "rag: search{query,k,under,ext,scope:all|files|notes,tag} remember{text,tags[]} notes{tag} forget{ids[]} update{paths[],dry_run} status config{roots[],types[],exclude[]}",
-	"sys":     "sys{action:info|processes|ports|kill,filter,port,pids[],name}",
+	"sys":     "sys{action:info|processes|ports|kill|setup,filter,port,pids[],name,what}: setup installs what ContextSaver needs, what=all|tools|compilers|office|chromium|llama|whisper|android|ndk|github (github gives a sign-in code for the user).",
 	"files":   "files{steps:[{op,from[],to}],dry_run}: ops copy move sync delete(Trash) rename{rules:[{replace,with,template,prefix,suffix,case,ext}]} mkdir download extract edit{edits:[{find,replace}]} write{content}; per step: include exclude recursive newer_than min_size conflict:keep_both|skip|newer|overwrite.",
 	"job":     "job{action:status|list|log|cancel|undo,id,wait_seconds}: log = new output since the last log (dev servers); cancel stops the whole process tree.",
 	"saved":   "saved{action:list|show|save|remove,name,steps}",

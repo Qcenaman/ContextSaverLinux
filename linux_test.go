@@ -87,3 +87,19 @@ func TestHexAddr(t *testing.T) {
 		t.Fatalf("%s:%d", a, p)
 	}
 }
+
+func TestSetupStepsRouting(t *testing.T) {
+	codeHome(t)
+	if _, _, err := compactDispatch("sys", map[string]any{"action": "setup", "what": "bogus"}); err == nil || !strings.Contains(err.Error(), "android") {
+		t.Fatalf("unknown step: %v", err)
+	}
+	names := map[string]bool{}
+	for _, st := range setupSteps() {
+		names[st.name] = true
+	}
+	for _, n := range []string{"tools", "compilers", "office", "chromium", "llama", "whisper", "android", "ndk", "github"} {
+		if !names[n] {
+			t.Errorf("no setup step %s", n)
+		}
+	}
+}

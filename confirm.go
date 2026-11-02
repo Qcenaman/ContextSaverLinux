@@ -139,6 +139,9 @@ func riskyAction(c string, a map[string]any) string {
 		if act == "kill" {
 			return "kill processes " + args()
 		}
+		if act == "setup" {
+			return "install programs for ContextSaver (" + str(a, "what") + ")"
+		}
 	case "window":
 		if act == "do" {
 			return "click/type in a window " + args()

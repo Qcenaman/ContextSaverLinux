@@ -65,7 +65,7 @@ func gitLogin() (string, error) {
 	}
 	if ghSignedIn() {
 		exec.Command(gh, "auth", "setup-git").Run()
-		return "signed in to GitHub as " + ghUser() + "; git uses it for push/pull/clone", nil
+		return "signed in to GitHub as " + ghUser() + "; git uses it for push/pull/clone" + ensureGitIdentity(), nil
 	}
 	ghLogin.Lock()
 	defer ghLogin.Unlock()
@@ -125,6 +125,7 @@ func gitLogin() (string, error) {
 		pw.Close()
 		if c.ProcessState.Success() {
 			exec.Command(gh, "auth", "setup-git").Run()
+			ensureGitIdentity()
 		}
 	}()
 	var code string
@@ -205,4 +206,27 @@ func releaseFiles(root string) []string {
 		out = out[:20]
 	}
 	return out
+}
+
+// ensureGitIdentity gives git a name and email when it has none: the GitHub login and its
+// private no-reply address. It returns a note when it set them.
+func ensureGitIdentity() string {
+	name, _ := runQuiet(5*time.Second, "git", "config", "--global", "user.name")
+	email, _ := runQuiet(5*time.Second, "git", "config", "--global", "user.email")
+	if strings.TrimSpace(name) != "" && strings.TrimSpace(email) != "" {
+		return ""
+	}
+	id, err1 := runQuiet(15*time.Second, "gh", "api", "user", "--jq", ".id")
+	login, err2 := runQuiet(15*time.Second, "gh", "api", "user", "--jq", ".login")
+	id, login = strings.TrimSpace(id), strings.TrimSpace(login)
+	if err1 != nil || err2 != nil || login == "" {
+		return ""
+	}
+	if strings.TrimSpace(name) == "" {
+		exec.Command("git", "config", "--global", "user.name", login).Run()
+	}
+	if strings.TrimSpace(email) == "" {
+		exec.Command("git", "config", "--global", "user.email", id+"+"+login+"@users.noreply.github.com").Run()
+	}
+	return "; git commits as " + login
 }
