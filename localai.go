@@ -195,7 +195,9 @@ func writeDesktopShortcuts(exe string) {
 		return
 	}
 	h, _ := os.UserHomeDir()
+	chatDesc := "Chat with the local AI that's loaded now, with ContextSaver's tools (loads the last one used when none is)"
+	writeLauncher(filepath.Join(desktopDir(), "ContextSaver Chat.desktop"), "ContextSaver Chat", chatDesc, "", []string{exe, "chat"}, true, 0)
 	writeLauncher(filepath.Join(h, ".local", "share", "applications", "contextsaver-chat.desktop"), "ContextSaver Chat",
-		"Chat with the local model, with ContextSaver's tools", "utilities-terminal", []string{exe, "chat"}, true, 0)
-	fmt.Println("Desktop icons: Local AI - <model> for each model, Stop Local AI; app menu: ContextSaver Chat")
+		chatDesc, "", []string{exe, "chat"}, true, 0)
+	fmt.Println("Desktop icons: ContextSaver Chat, Local AI - <model> for each model, Stop Local AI; app menu: ContextSaver Chat")
 }

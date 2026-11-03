@@ -37,17 +37,70 @@ func findRunningAI() aiRunning {
 			r.chats = append(r.chats, p)
 			continue
 		}
-		if p.pid == embed {
-			continue
-		}
-		for _, w := range localModelProcs {
-			if strings.HasPrefix(n, w) {
-				r.servers = append(r.servers, p)
-				break
-			}
+		if p.pid != embed && isModelProc(p.name) {
+			r.servers = append(r.servers, p)
 		}
 	}
 	return r
+}
+
+func isModelProc(name string) bool {
+	n := strings.ToLower(name)
+	for _, w := range localModelProcs {
+		if strings.HasPrefix(n, w) {
+			return true
+		}
+	}
+	return false
+}
+
+// loadedAI finds the model loaded right now, whoever started it: on the chat port first,
+// then on the port of any other model server that runs (not the search index). nil when
+// none is; host and port are then the chat port's.
+func loadedAI(host string, port int, say func(string)) (string, int, []string) {
+	type addr struct {
+		host string
+		port int
+	}
+	cands := []addr{{host, port}}
+	seen := map[int]bool{port: true, ragPort: true}
+	embed := guardPIDOnPort(ragPort)
+	ps, _ := procs()
+	for _, p := range ps {
+		if p.pid == embed || !isModelProc(p.name) {
+			continue
+		}
+		if h, pt := addrIn(p.cmd); !seen[pt] {
+			seen[pt] = true
+			cands = append(cands, addr{h, pt})
+		}
+	}
+	for _, c := range cands {
+		if ms := waitServed(c.host, c.port, say); len(ms) > 0 {
+			return c.host, c.port, ms
+		}
+	}
+	return host, port, nil
+}
+
+var servedPoll = 2 * time.Second
+
+// waitServed: the models answering on host:port, after waiting (up to 10 minutes) while
+// the server there is still loading its model; nil when nothing serves there.
+func waitServed(host string, port int, say func(string)) []string {
+	ms := servedModels(host, port)
+	if !serverLoading(host, port) {
+		return ms
+	}
+	say(fmt.Sprintf("The model on port %d is still loading; waiting for it…", port))
+	for end := time.Now().Add(10 * time.Minute); time.Now().Before(end); {
+		time.Sleep(servedPoll)
+		ms = servedModels(host, port)
+		if !serverLoading(host, port) {
+			return ms
+		}
+	}
+	return ms
 }
 
 func (r aiRunning) any() bool { return len(r.chats) > 0 || len(r.servers) > 0 || len(r.served) > 0 }

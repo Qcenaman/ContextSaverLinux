@@ -175,12 +175,17 @@ func (u *chatUI) newChat() {
 	u.log = &chatLog{ID: time.Now().Format("20060102-150405"), Messages: []chatMsg{{Role: "system", Content: chatSystem()}}}
 }
 
-// connect makes sure a model answers, starting name (or the last-used one) when none does.
+// connect makes sure a model answers. Without a name it uses whichever model is loaded,
+// whoever started it, on any port (loadedAI); only when none is does it load the
+// last-used one. With a name (/model x) it loads that model.
 func (u *chatUI) connect(name string) error {
 	host, port := scriptAddr(firstScript())
+	var served []string
+	if name == "" {
+		host, port, served = loadedAI(host, port, func(s string) { fmt.Println(u.paint("2", s)) })
+	}
 	u.base = fmt.Sprintf("http://%s:%d", host, port)
-	served := servedModels(host, port)
-	if name == "" && len(served) > 0 {
+	if len(served) > 0 {
 		u.model = strings.Join(uniq(served), ",")
 	} else {
 		if name == "" {

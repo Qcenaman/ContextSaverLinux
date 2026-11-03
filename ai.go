@@ -465,12 +465,17 @@ var (
 )
 
 func scriptAddr(script string) (string, int) {
-	host, port := "127.0.0.1", 8080
 	b, err := os.ReadFile(script)
 	if err != nil {
-		return host, port
+		return "127.0.0.1", 8080
 	}
-	s := string(b)
+	return addrIn(string(b))
+}
+
+// addrIn: the host and port a start script or a model server's command line uses
+// (llama-server's own defaults when it names none).
+func addrIn(s string) (string, int) {
+	host, port := "127.0.0.1", 8080
 	if m := portRe.FindStringSubmatch(s); m != nil {
 		port, _ = strconv.Atoi(m[1])
 	} else if m := setPortRe.FindStringSubmatch(s); m != nil {
