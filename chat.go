@@ -54,6 +54,7 @@ type chatUI struct {
 	base  string // http://host:port
 	ctx   int    // the server's context size in tokens
 	model string
+	asked map[string]bool // repos whose copy this chat already settled (asked, cloned or updated)
 }
 
 func (u *chatUI) paint(code, s string) string {
@@ -173,6 +174,7 @@ func (u *chatUI) readInput() (string, error) {
 
 func (u *chatUI) newChat() {
 	u.log = &chatLog{ID: time.Now().Format("20060102-150405"), Messages: []chatMsg{{Role: "system", Content: chatSystem()}}}
+	u.asked = map[string]bool{}
 }
 
 // connect makes sure a model answers. Without a name it uses whichever model is loaded,
@@ -264,6 +266,7 @@ func (u *chatUI) command(line string) (quit bool) {
 			c.Messages[0].Content = chatSystem()
 		}
 		u.log = &c
+		u.asked = map[string]bool{}
 		for _, m := range c.Messages {
 			switch {
 			case m.Role == "user":
@@ -426,6 +429,10 @@ func (u *chatUI) runTool(ctx context.Context, tc chatToolCall) string {
 	if s, ok := a["confirm"].(string); ok && s != "" {
 		delete(a, "confirm")
 	}
+	note := ""
+	for _, s := range reposToAsk(c, a, u.asked) {
+		note += u.askRepoUpdate(s)
+	}
 	approved := false
 	if what := approvalAction(c, a); what != "" {
 		fmt.Print(u.paint("1;33", "  allow: "+what+"? [y/N] "))
@@ -447,11 +454,32 @@ func (u *chatUI) runTool(ctx context.Context, tc chatToolCall) string {
 	if err != nil {
 		msg := clip1(err.Error(), 600)
 		fmt.Println(u.paint("31", "  ✗ "+firstLine(msg)))
-		return "error: " + msg
+		return note + "error: " + msg
 	}
 	out = capOut(out)
 	fmt.Println(u.paint("2", "  ✓ "+clip(firstLine(out), 140)))
-	return out
+	return note + out
+}
+
+// askRepoUpdate: before a call uses a repo copy ContextSaver already has, the user says
+// here whether to update it first (once per chat). Returns a note for the model.
+func (u *chatUI) askRepoUpdate(s repoSpec) string {
+	r := s.Owner + "/" + s.Name
+	ago := repoUpdatedAgo(s)
+	fmt.Print(u.paint("1;33", "  update your copy of "+r+" (last updated "+ago+") first? [y/N] "))
+	ans, _ := u.in.ReadString('\n')
+	if a := strings.ToLower(strings.TrimSpace(ans)); a != "y" && a != "yes" {
+		fmt.Println(u.paint("2", "  using it as it is"))
+		return "note: the user chose not to update " + r + "; its copy is from " + ago + "\n"
+	}
+	fmt.Println(u.paint("2", "  updating "+r+"…"))
+	out, err := updateRepoCopy(s.Owner, s.Name)
+	if err != nil {
+		fmt.Println(u.paint("31", "  ✗ "+err.Error()))
+		return "note: " + err.Error() + "\n"
+	}
+	fmt.Println(u.paint("2", "  ✓ "+out))
+	return "note: " + out + "\n"
 }
 
 // parsePCArgs reads {"c":..., "a":{...}} the way the pc tool does (a may be a JSON

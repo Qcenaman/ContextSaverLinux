@@ -187,12 +187,13 @@ func callCompactP(raw json.RawMessage, progress func(string)) (string, []toolIma
 			args["confirmed"] = true
 		}
 	}
+	notes := repoUpdateNotes(c, args)
 	out, imgs, err := runLimited(start, func() (string, []toolImage, error) { return compactDispatch(c, args) })
 	out, err = shortRepoPaths(out), shortRepoErr(err)
 	if err != nil {
 		return "", nil, errors.New(clip1(err.Error(), 600))
 	}
-	return capOut(out), imgs, nil
+	return capOut(notes + out), imgs, nil
 }
 
 func compactDispatch(c string, a map[string]any) (string, []toolImage, error) {
@@ -762,7 +763,7 @@ var shortHelp = map[string]string{
 	"browser": "browser{action:open|text|find|links|click|fill|press|wait|console|close,url,target,value,pattern,show}: real Chrome, text only; localhost:PORT works; console = page errors since the last call.",
 	"window":  "window{action,window:title|program|pid}: list{filter} text ocr{x,y,w,h,boxes} copy wait{pattern} clipboard{text} screenshot{question}\ndo{steps:[{click:name}{type,into}{press}{wait}{click_text,nth}{click_at:[x,y]}{move:[x,y]}{drag:[x1,y1,x2,y2]}{scroll:n}{hold,secs}],button,then:\"text\"}",
 	"media":   "media{action:info|transcript|frames,path,language,timestamps}: audio/video as text.",
-	"git":     "git{action:status|diff|log|compare|commit|push|pull|clone|login|ci,path,to,message,paths[],full,ref,n,url,pair,wait_seconds}: never as admin; path may be owner/name[@ref] (read-only GitHub copy); compare = path vs to (folders or owner/name[@ref]): only-in, changed by lines, same; pair:true pairs x_windows.go/x_linux.go; paths[]+full:true = changed lines; clone without to = temp copy, an existing clone is updated; login = GitHub sign-in (gives a code for the user); ci = latest GitHub Actions run, failing lines only.",
+	"git":     "git{action:status|diff|log|compare|commit|push|pull|clone|login|ci,path,to,message,paths[],full,ref,n,url,pair,wait_seconds}: never as admin; path may be owner/name[@ref] (read-only GitHub copy; pull on it updates it); compare = path vs to (folders or owner/name[@ref]): only-in, changed by lines, same; pair:true pairs x_windows.go/x_linux.go; paths[]+full:true = changed lines; clone without to = temp copy, an existing clone is updated; login = GitHub sign-in (gives a code for the user); ci = latest GitHub Actions run, failing lines only.",
 	"check":   "check{path,action,fix,name,target,out}: check = lint/type-check; build = build+tests; test = tests (name filters); compile = runnable files for target linux|windows|android into dist/<target>. Failing lines only. Run after every code change.",
 	"compile": "compile{path,target:linux|windows|android,out,release}: runnable files into out (default <project>/dist/<target>): Go, Gradle (.apk), Flutter, Rust, CMake/Make/C/C++, .NET, Electron, Python; one source file works too.",
 	"test":    "test{path,name}: run the tests (only those matching name); failing lines only.",

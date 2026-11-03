@@ -4,8 +4,9 @@ package main
 // and git means that repo. ContextSaver keeps its own temporary copies in data/repos
 // (never TokenSaver's, never the user's own clones): a partial clone (file contents only
 // when needed, full history for tags and compare), one worktree <name>@<ref> per ref
-// sharing its objects, refreshed when older than 5 minutes and deleted by ContextSaver
-// itself after 24 hours unused. Results show them as owner/name/..., which can be
+// sharing its objects. A copy is never updated on its own: only when the user says yes
+// (asked once per chat when a request uses a copy that exists, or git pull on it). Copies
+// are deleted by ContextSaver itself after 24 hours unused. Results show them as owner/name/..., which can be
 // passed straight back. The copies are read-only: commit, push and release are refused.
 
 import (
@@ -23,7 +24,6 @@ import (
 )
 
 var (
-	repoFresh     = 5 * time.Minute       // older copies fetch and fast-forward before use
 	repoMaxIdle   = 24 * time.Hour        // copies unused this long are deleted
 	repoCloneWait = 50 * time.Second      // a first clone answers "still cloning" after this
 	repoURLBase   = "https://github.com/" // tests point this at local repos
@@ -319,8 +319,8 @@ func cloneHint(out string) string {
 }
 
 // ensureRepo returns the local copy of owner/name (at ref when given): cloned the first
-// time, refreshed when older than repoFresh, "still cloning" when a big first clone
-// takes longer than repoCloneWait.
+// time a request needs it, else used as it is (updates come only from updateRepoCopy);
+// "still cloning" when a big first clone takes longer than repoCloneWait.
 func ensureRepo(owner, name, ref string) (string, error) {
 	if appHome == "" {
 		return "", errors.New("ContextSaver's data folder is not set")
@@ -339,52 +339,62 @@ func ensureRepo(owner, name, ref string) (string, error) {
 		}
 	}
 	repoTouch(repoMarker(base, "used"))
-	refreshBase(base)
 	if ref == "" {
 		return base, nil
 	}
 	return ensureWorktree(base, ref)
 }
 
-// refreshBase fetches and fast-forwards the main copy when older than repoFresh, or
-// resets it to origin when history was rewritten. Offline, the copy is used as it is.
-func refreshBase(base string) {
-	fm := repoMarker(base, "fetched")
-	if repoAge(fm) < repoFresh {
-		return
+// updateRepoCopy fetches owner/name's copy and fast-forwards it, or resets it to origin
+// when history was rewritten; its branch worktrees follow on their next use. Runs only
+// on the user's yes or git pull on the copy, never on its own.
+func updateRepoCopy(owner, name string) (string, error) {
+	base := repoBase(owner, name)
+	if !isGitWork(base) {
+		return "", fmt.Errorf("there is no copy of %s/%s yet", owner, name)
 	}
-	unlock, ok := tryRepoLock(base)
+	unlock, ok := waitRepoLock(base, repoCloneWait)
 	if !ok {
-		return // another call is updating it right now
+		return "", fmt.Errorf("%s/%s is busy, call again", owner, name)
 	}
 	defer unlock()
-	if repoAge(fm) < repoFresh {
-		return
+	fm := repoMarker(base, "fetched")
+	before := repoLastCommit(base)
+	args := append(append([]string{}, gitNetFlags...), "fetch", "--prune", "--tags", "--force", "--quiet", "origin")
+	if out, code, err := gitExec(base, 5*time.Minute, args...); err != nil || code != 0 {
+		why := gitShort(out, 3)
+		if err != nil {
+			why = err.Error()
+		}
+		return "", fmt.Errorf("couldn't update %s/%s (%s); the copy from %s is used as it is", owner, name, why, agoText(repoAge(fm)))
+	}
+	if br, code, _ := gitExec(base, 20*time.Second, "symbolic-ref", "--short", "-q", "HEAD"); code == 0 && strings.TrimSpace(br) != "" {
+		up := "origin/" + strings.TrimSpace(br)
+		if _, code, _ := gitExec(base, 10*time.Minute, "merge", "--ff-only", "--quiet", up); code != 0 {
+			gitExec(base, 10*time.Minute, "reset", "--hard", "--quiet", up)
+		}
 	}
 	repoTouch(fm)
-	args := append(append([]string{}, gitNetFlags...), "fetch", "--prune", "--tags", "--force", "--quiet", "origin")
-	if _, code, err := gitExec(base, 5*time.Minute, args...); err != nil || code != 0 {
-		return
+	if after := repoLastCommit(base); after != before {
+		return fmt.Sprintf("updated %s/%s, now at %s", owner, name, after), nil
 	}
-	br, code, _ := gitExec(base, 20*time.Second, "symbolic-ref", "--short", "-q", "HEAD")
-	if code != 0 || strings.TrimSpace(br) == "" {
-		return
-	}
-	up := "origin/" + strings.TrimSpace(br)
-	if _, code, _ := gitExec(base, 10*time.Minute, "merge", "--ff-only", "--quiet", up); code != 0 {
-		gitExec(base, 10*time.Minute, "reset", "--hard", "--quiet", up)
-	}
+	return fmt.Sprintf("%s/%s was already up to date", owner, name), nil
+}
+
+func repoLastCommit(dir string) string {
+	out, _, _ := gitExec(dir, 20*time.Second, "log", "-1", "--date=short", "--format=%h %ad %s")
+	return strings.TrimSpace(out)
 }
 
 func safeRef(ref string) string { return unsafeRefRe.ReplaceAllString(ref, "_") }
 
 // ensureWorktree returns <name>@<ref>: a worktree of base at ref (branch, tag or commit)
-// sharing base's objects; a branch moves to its newest commit once older than repoFresh.
+// sharing base's objects; a branch moves to its newest commit after base was updated.
 func ensureWorktree(base, ref string) (string, error) {
 	wt := filepath.Join(filepath.Dir(base), filepath.Base(base)+"@"+safeRef(ref))
 	fm := repoMarker(wt, "fetched")
 	have := isGitWork(wt)
-	if have && repoAge(fm) < repoFresh {
+	if have && repoAge(fm) < repoAge(repoMarker(base, "fetched")) {
 		repoTouch(repoMarker(wt, "used"))
 		return wt, nil
 	}
@@ -576,4 +586,111 @@ func removeRepoCopy(p string) bool {
 	os.Remove(repoMarker(p, "used"))
 	os.Remove(repoMarker(p, "fetched"))
 	return true
+}
+
+// ---------- asking before an update ----------
+
+// repoCommands are the commands that read ContextSaver's repo copies.
+var repoCommands = map[string]bool{"find": true, "search": true, "ls": true, "scan": true, "dir": true, "list": true,
+	"read": true, "cat": true, "git": true, "check": true, "lint": true, "outline": true, "symbols": true, "compare": true}
+
+// reposToAsk: the GitHub repos a call uses whose copy exists and that this chat hasn't
+// settled yet; settled (owner/name in lower case) records them as handled. A repo
+// without a copy is settled right away (the call clones it fresh), and so is one the
+// call itself updates (git pull).
+func reposToAsk(c string, a map[string]any, settled map[string]bool) []repoSpec {
+	if appHome == "" || !repoCommands[c] {
+		return nil
+	}
+	act := strings.ToLower(str(a, "action"))
+	if c == "git" && act == "clone" && str(a, "to") != "" {
+		return nil // a clone into a folder of the user's own, not the copy
+	}
+	var out []repoSpec
+	for _, p := range repoArgPaths(a) {
+		s, ok := parseRepoPath(p)
+		k := strings.ToLower(s.Owner + "/" + s.Name)
+		if !ok || settled[k] {
+			continue
+		}
+		settled[k] = true
+		if !(c == "git" && act == "pull") && isGitWork(repoBase(s.Owner, s.Name)) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// repoArgPaths: the path-like arguments of a call, under any of the names the commands
+// accept for them.
+func repoArgPaths(a map[string]any) []string {
+	var ps []string
+	for _, k := range []string{"path", "paths", "file", "files", "folder", "dir", "in", "to", "with", "against", "other", "a", "b", "from", "url", "root"} {
+		switch v := a[k].(type) {
+		case string:
+			ps = append(ps, v)
+		case []any:
+			for _, x := range v {
+				if s, ok := x.(string); ok {
+					ps = append(ps, s)
+				}
+			}
+		case []string:
+			ps = append(ps, v...)
+		}
+	}
+	return ps
+}
+
+var (
+	repoNotedMu sync.Mutex
+	repoNoted   = map[string]bool{}
+)
+
+// repoUpdateNotes is for apps that call ContextSaver over MCP, where there is no terminal
+// to ask in: the first call using a copy in a session says how old it is and how the
+// user can have it updated. The copy itself is never updated on its own.
+func repoUpdateNotes(c string, a map[string]any) string {
+	repoNotedMu.Lock()
+	ss := reposToAsk(c, a, repoNoted)
+	repoNotedMu.Unlock()
+	var b strings.Builder
+	for _, s := range ss {
+		r := s.Owner + "/" + s.Name
+		fmt.Fprintf(&b, "note: the copy of %s was last updated %s; it isn't updated on its own. If the user wants it updated first: git{action:pull,path:%q}\n", r, repoUpdatedAgo(s), r)
+	}
+	return b.String()
+}
+
+func repoUpdatedAgo(s repoSpec) string {
+	return agoText(repoAge(repoMarker(repoBase(s.Owner, s.Name), "fetched")))
+}
+
+// agoText: "just now", "12 min ago", "3 h ago", "2 days ago".
+func agoText(d time.Duration) string {
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%d min ago", int(d.Minutes()))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%d h ago", int(d.Hours()))
+	case d < time.Duration(1<<62):
+		return fmt.Sprintf("%d days ago", int(d.Hours()/24))
+	}
+	return "at an unknown time"
+}
+
+// repoOfCopy names the GitHub repo that a folder in data/repos is a copy of.
+func repoOfCopy(dir string) (owner, name string) {
+	rel, err := filepath.Rel(reposDir(), dir)
+	if err != nil {
+		return "", ""
+	}
+	parts := strings.SplitN(filepath.ToSlash(rel), "/", 3)
+	if len(parts) < 2 {
+		return "", ""
+	}
+	name, _, _ = strings.Cut(parts[1], "@")
+	return parts[0], name
 }

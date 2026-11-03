@@ -237,8 +237,18 @@ func toolGit(raw json.RawMessage) (string, error) {
 		switch action {
 		case "commit", "push", "release":
 			return "", fmt.Errorf("%s is a temporary read-only copy of a GitHub repo: %s refused (clone it to a folder of your own first: git{action:clone,url,to})", root, action)
-		case "pull":
-			return "temporary copy: refreshed by itself when older than 5 minutes\n" + repoInfo(root), nil
+		case "pull": // the user wants the copy updated
+			owner, name := repoOfCopy(root)
+			msg, err := updateRepoCopy(owner, name)
+			if err != nil {
+				return "", err
+			}
+			if s, ok := parseRepoPath(a.Path); ok && s.Ref != "" {
+				if wt, err := ensureRepo(owner, name, s.Ref); err == nil {
+					root = wt
+				}
+			}
+			return msg + "\n" + repoInfo(root), nil
 		}
 	}
 	var b strings.Builder
@@ -529,7 +539,7 @@ func gitClone(a gitArgs) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return "temporary read-only copy (refreshed when used, removed after 24 h unused)\n" + repoInfo(dir), nil
+		return "temporary read-only copy (updated only when the user wants it: git pull on it; removed after 24 h unused)\n" + repoInfo(dir), nil
 	}
 	if !strings.Contains(u, "://") && !strings.HasPrefix(u, "git@") {
 		if s, ok := parseRepoPath(u); ok {

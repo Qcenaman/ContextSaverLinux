@@ -17,13 +17,13 @@ func repoTestEnv(t *testing.T) string {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
-	oh, ob, of, ow := appHome, repoURLBase, repoFresh, repoCloneWait
+	oh, ob, ow := appHome, repoURLBase, repoCloneWait
 	appHome = t.TempDir()
 	hub := t.TempDir()
 	repoURLBase = "file://" + filepath.ToSlash(hub) + "/"
 	repoCloneWait = time.Minute
 	lastRepoClean.Store(time.Now().Unix()) // no background cleanup during tests
-	t.Cleanup(func() { appHome, repoURLBase, repoFresh, repoCloneWait = oh, ob, of, ow })
+	t.Cleanup(func() { appHome, repoURLBase, repoCloneWait = oh, ob, ow })
 	for _, k := range []string{"GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"} {
 		t.Setenv(k, "test")
 	}
@@ -101,8 +101,8 @@ func TestParseRepoPath(t *testing.T) {
 	}
 }
 
-// owner/name resolves to ContextSaver's repos folder; a second use reuses and updates the
-// copy (fast-forward, or reset when history was rewritten) instead of failing.
+// owner/name resolves to ContextSaver's repos folder; later uses reuse the copy as it is,
+// and an update (the user's yes) fast-forwards it, or resets it when history was rewritten.
 func TestRepoPathResolvesAndUpdates(t *testing.T) {
 	hub := repoTestEnv(t)
 	work := newHubRepo(t, hub, "acme", "demo", map[string]string{"a.txt": "one\n", "src/b.go": "package b\n\nfunc Hello() {}\n"})
@@ -121,17 +121,24 @@ func TestRepoPathResolvesAndUpdates(t *testing.T) {
 	}
 
 	commitFiles(t, work, map[string]string{"a.txt": "two\n"}, "second")
+	os.Chtimes(repoMarker(repoBase("acme", "demo"), "fetched"), time.Now().Add(-time.Hour), time.Now().Add(-time.Hour))
 	p, _ = expandRead("acme/demo/a.txt")
 	if got := readT(t, p); got != "one\n" {
-		t.Fatalf("a fresh copy is reused as it is, got %q", got)
+		t.Fatalf("a copy is never updated on its own, even an hour old; got %q", got)
 	}
-	repoFresh = 0
+	if out, err := updateRepoCopy("acme", "demo"); err != nil || !strings.Contains(out, "updated acme/demo, now at") || !strings.Contains(out, "second") {
+		t.Fatalf("update: %v %s", err, out)
+	}
 	if p, err = expandRead("acme/demo/a.txt"); err != nil || readT(t, p) != "two\n" {
-		t.Fatalf("an old copy fast-forwards: %v", err)
+		t.Fatalf("an update fast-forwards: %v", err)
+	}
+	if out, err := updateRepoCopy("acme", "demo"); err != nil || !strings.Contains(out, "already up to date") {
+		t.Fatalf("second update: %v %s", err, out)
 	}
 	os.WriteFile(filepath.Join(work, "a.txt"), []byte("three\n"), 0o644)
 	gitT(t, work, "commit", "-q", "-a", "--amend", "-m", "rewritten")
 	gitT(t, work, "push", "-q", "--force", "origin", "HEAD")
+	updateRepoCopy("acme", "demo")
 	if p, err = expandRead("acme/demo/a.txt"); err != nil || readT(t, p) != "three\n" {
 		t.Fatalf("rewritten history resets to origin: %v", err)
 	}
@@ -147,10 +154,15 @@ func TestRepoPathResolvesAndUpdates(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dest, "c.txt")); err != nil {
 		t.Fatal("existing clone was not updated")
 	}
-	// without to: the temporary copy, with path, branch and last commit
+	// without to: the temporary copy, with path, branch and last commit (not updated)
 	out, err = gitClone(gitArgs{URL: "acme/demo"})
-	if err != nil || !strings.Contains(shortRepoPaths(out), "path: acme/demo\n") || !strings.Contains(out, "branch: main") || !strings.Contains(out, "third") {
+	if err != nil || !strings.Contains(shortRepoPaths(out), "path: acme/demo\n") || !strings.Contains(out, "branch: main") || !strings.Contains(out, "rewritten") {
 		t.Fatalf("clone to the repos folder: %v\n%s", err, out)
+	}
+	// git pull on the copy is how the user has it updated
+	out, _, err = callTool("git", json.RawMessage(`{"action":"pull","path":"acme/demo"}`))
+	if err != nil || !strings.Contains(out, "updated acme/demo, now at") || !strings.Contains(out, "third") {
+		t.Fatalf("pull on the copy: %v\n%s", err, out)
 	}
 }
 
@@ -182,9 +194,14 @@ func TestRepoRef(t *testing.T) {
 		t.Fatalf("branch: %v", err)
 	}
 	commitFiles(t, work, map[string]string{"d.txt": "dev2\n"}, "dev2")
-	repoFresh = 0
+	if p, err = expandRead("acme/demo@dev/d.txt"); err != nil || readT(t, p) != "dev\n" {
+		t.Fatalf("a branch worktree stays as it is until an update: %v", err)
+	}
+	if _, err := updateRepoCopy("acme", "demo"); err != nil {
+		t.Fatal(err)
+	}
 	if p, err = expandRead("acme/demo@dev/d.txt"); err != nil || readT(t, p) != "dev2\n" {
-		t.Fatalf("a branch worktree moves to its newest commit: %v", err)
+		t.Fatalf("after an update the branch worktree moves to its newest commit: %v", err)
 	}
 	if _, err := expandRead("acme/demo@nope/v.txt"); err == nil {
 		t.Fatal("an unknown ref must fail")
